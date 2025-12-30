@@ -1,50 +1,40 @@
-import requests
-import json
-import time
 import os
+import requests
 from flask import Flask, jsonify
 
 app = Flask(__name__)
 
-# --- 您的 GitHub 設定 ---
-USER = "kusomiw7"
-REPO = "twno1"
-BRAIN_FILE = "brain_logic.json"
-GITHUB_RAW_URL = f"https://raw.githubusercontent.com/{USER}/{REPO}/main/{BRAIN_FILE}"
-
-# 從 Render 環境變數讀取暗號，程式碼中不留痕跡
-SECRET_AUTH = os.environ.get("AUTH_CODE", "發大財")
+# 從環境變數讀取暗號，預設為「發大財」
+# 這樣你以後在 JSON 裡不寫暗號，伺服器也會幫你過關
+MASTER_AUTH = os.environ.get("AUTH_CODE", "發大財")
+GITHUB_JSON_URL = "https://raw.githubusercontent.com/kusomiw7/twno1/main/brain_logic.json"
 
 @app.route('/')
 def home():
-    return "AI Secure Brain is Online!"
+    return "AI Secure Brain is Online! (No-Auth Mode Active)"
 
 @app.route('/api/get_instruction', methods=['GET'])
 def get_instruction():
     try:
-        # 使用時間戳強制刷掉 GitHub 快取
-        no_cache_url = f"{GITHUB_RAW_URL}?t={int(time.time())}"
-        response = requests.get(no_cache_url, timeout=10)
+        # 強制刷新快取抓取 GitHub 指令
+        response = requests.get(f"{GITHUB_JSON_URL}?t={os.urandom(8).hex()}")
+        data = response.json()
         
-        if response.status_code == 200:
-            brain_data = response.json()
+        # 自動化邏輯：如果 GitHub JSON 沒寫 auth，或 auth 是空值，我們自動補上 MASTER_AUTH
+        client_auth = data.get("auth", MASTER_AUTH)
+        
+        if client_auth == MASTER_AUTH:
+            return jsonify({
+                "status": "online",
+                "instruction": data.get("action", "ACTIVATE_SYSTEM"),
+                "details": data.get("payload", {}),
+                "server_time": os.popen("date +%T").read().strip()
+            })
+        else:
+            return jsonify({"status": "auth_failed", "msg": "驗證失敗"}), 403
             
-            # 使用環境變數進行驗證，別人看代碼也猜不到
-            if brain_data.get("auth") == SECRET_AUTH:
-                return jsonify({
-                    "status": "online",
-                    "instruction": brain_data.get("action"),
-                    "details": brain_data.get("payload"),
-                    "server_time": time.strftime('%H:%M:%S')
-                })
-            else:
-                return jsonify({"status": "auth_failed", "msg": "暗號驗證失敗"}), 403
-        
-        return jsonify({"status": "not_found", "msg": "找不到指令檔"}), 404
-        
     except Exception as e:
         return jsonify({"status": "error", "msg": str(e)}), 500
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=10000)
