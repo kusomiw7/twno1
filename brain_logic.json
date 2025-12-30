@@ -1,9 +1,7 @@
 {
   "auth": "發大財",
-  "action": "ACTIVATE_SYSTEM",
+  "action": "OPEN_WEB",
   "payload": {
-    "target": "aia87_core",
-    "command_code": "0x001",
-    "message": "API 通道已打通，請開始注入物品原始碼。"
+    "url": "https://www.google.com"
   }
 }
