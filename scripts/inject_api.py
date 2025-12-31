@@ -3,42 +3,43 @@ import requests
 import sys
 
 def inject():
-    # 從 GitHub Secrets 抓取
-    token = os.environ.get("API_TOKEN") 
+    # 抓取 GitHub Secrets
+    token = os.environ.get("API_TOKEN") # 內容應為：發財
     base_url = os.environ.get("API_BASE_URL")
 
-    print(f"--- 5.2 執行官：twno1 專案遠端注射 ---")
+    print("--- 5.2 執行官：指令發射中心啟動 ---")
     
     if not token or not base_url:
-        print("❌ 錯誤：GitHub Secrets 讀取失敗 (請檢查 API_TOKEN 與 API_BASE_URL)")
+        print("❌ 失敗：環境變數 API_TOKEN 或 URL 缺失")
         sys.exit(1)
 
-    # 根據你的長期記憶與手動修改：Key 是 AUTH_CODE，值是 發財
-    target_url = f"{base_url.rstrip('/')}/memory/update"
+    # 1. 對準你的新路徑：/api/execute
+    target_url = f"{base_url.rstrip('/')}/api/execute"
     
+    # 2. 對準你的 Header Key：x-auth-code (FastAPI 會自動轉小寫處理)
     headers = {
-        "AUTH_CODE": token,      # 這是你在 Render 設定的 Key
+        "x-auth-code": token,
         "Content-Type": "application/json"
     }
     
+    # 3. 對準你的 CommandRequest 模型 (command, value)
     payload = {
-        "key": "system_status",
-        "content": "發財！twno1 專案連線成功。"
+        "command": "memory_injection",
+        "value": "發財！5.2 狀態已更新至 JSON 磁碟。"
     }
 
     print(f"🚀 正在發送暗號「{token}」至: {target_url}")
 
     try:
-        # 增加 Timeout 防止伺服器喚醒過慢
-        response = requests.post(target_url, headers=headers, json=payload, timeout=45)
+        response = requests.post(target_url, headers=headers, json=payload, timeout=30)
         
-        print(f"📡 狀態碼: {response.status_code}")
+        print(f"📡 伺服器狀態碼: {response.status_code}")
         print(f"📄 伺服器回應: {response.text}")
         
         if response.status_code == 200:
-            print("✅ 【發財】！twno1 記憶同步成功！")
+            print("✅ 【發財】連線成功！持久化記憶已寫入 state_file。")
         else:
-            print(f"❌ 失敗：代碼 {response.status_code}。請確認 Render 的 AUTH_CODE 是否為『發財』")
+            print(f"⚠️ 失敗：狀態碼 {response.status_code}，請檢查暗號是否與 Render 一致。")
             sys.exit(1)
             
     except Exception as e:
