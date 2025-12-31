@@ -1,11 +1,14 @@
 import os
 import sys
 import time
+from typing import Optional
+
 import requests
 
 
 def inject() -> None:
-    # 1) 讀取環境變數（只讀一次，且不 print token）
+    print(f"[info] python={sys.version.split()[0]}")
+
     token = os.environ.get("API_TOKEN")
     raw_url = os.environ.get("API_BASE_URL")  # e.g. https://twno1-brain.onrender.com
 
@@ -15,18 +18,14 @@ def inject() -> None:
         print("❌ 錯誤：GitHub Secrets (API_TOKEN 或 API_BASE_URL) 缺失")
         sys.exit(1)
 
-    # 2) 修剪 base URL，避免雙斜線
     base_url = raw_url.strip().rstrip("/")
     target_url = f"{base_url}/api/execute"  # ⚠️ 確認 server 端是否真有這個路徑
 
-    # 3) Header：用連字號版本，避免 proxy 丟棄底線 header
     headers = {
-        "X-Auth-Code": token,
+        "X-Auth-Code": token,           # 最穩：連字號 header
         "Accept": "application/json",
-        # 不必手動加 Content-Type；requests 在你用 json=payload 時會自動加
     }
 
-    # 4) Payload：保持單一結構，避免 dict key 覆蓋
     payload = {
         "command": "sync_memory",
         "value": "發財！長期記憶通道已 100% 對齊。",
@@ -34,10 +33,9 @@ def inject() -> None:
 
     print(f"🚀 發送請求至: {target_url}")
 
-    last_status: int | None = None
-    last_text: str | None = None
+    last_status: Optional[int] = None
+    last_text: Optional[str] = None
 
-    # 5) Render 冷啟動：最多嘗試 3 次
     for attempt in range(1, 4):
         try:
             print(f"📡 第 {attempt} 次嘗試連線...")
@@ -60,7 +58,6 @@ def inject() -> None:
                 print("✅ 連線成功：記憶更新已送達")
                 return
 
-            # 常見錯誤碼指引
             if resp.status_code == 404:
                 print("❌ 404：路徑錯誤（請確認 server 是否有 /api/execute）")
                 break
