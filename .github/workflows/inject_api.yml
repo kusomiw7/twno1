@@ -4,39 +4,54 @@ on:
   workflow_dispatch:
     inputs:
       memory_key:
-        description: "記憶鍵值 (例如: system_status)"
+        description: "記憶鍵值"
         required: false
         default: "system_status"
       memory_content:
-        description: "要存入的內容 (例如: 發大財)"
+        description: "記憶內容"
         required: false
-        default: "5.2 記憶連結測試成功"
+        default: "5.2 複雜架構修復成功"
 
   push:
     branches:
       - main
     paths:
-      - "scripts/**"
       - ".github/workflows/inject_api.yml"
+      - "scripts/**"
 
 permissions:
   contents: read
 
 jobs:
   inject:
-    name: Execute 5.2 Memory Injection
+    name: Inject API secrets into runner env (safe)
     runs-on: ubuntu-latest
-    
+    timeout-minutes: 10
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Validate and Mask Secrets
+        shell: bash
+        env:
+          API_TOKEN: ${{ secrets.API_TOKEN }}
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+        run: |
+          if [[ -z "${API_TOKEN}" ]]; then echo "ERROR: API_TOKEN is missing"; exit 1; fi
+          echo "::add-mask::${API_TOKEN}"
+          echo "API_TOKEN=${API_TOKEN}" >> $GITHUB_ENV
+          if [[ -n "${API_BASE_URL}" ]]; then
+            echo "::add-mask::${API_BASE_URL}"
+            echo "API_BASE_URL=${API_BASE_URL}" >> $GITHUB_ENV
+          fi
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
-      - name: Install dependencies
+      - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
           pip install requests
@@ -44,18 +59,15 @@ jobs:
       - name: Run Injection Script
         shell: bash
         env:
-          # 直接從 Secrets 抓取
-          API_TOKEN: ${{ secrets.API_TOKEN }}
-          API_BASE_URL: ${{ secrets.API_BASE_URL }}
-          # 從手動輸入框抓取
-          MEMORY_KEY: ${{ github.event.inputs.memory_key }}
-          MEMORY_CONTENT: ${{ github.event.inputs.memory_content }}
+          # 這裡必須再次顯式聲明，確保 Python 能從 env 讀取
+          API_TOKEN: ${{ env.API_TOKEN }}
+          API_BASE_URL: ${{ env.API_BASE_URL }}
+          MEMORY_KEY: ${{ github.event.inputs.memory_key || 'system_status' }}
+          MEMORY_CONTENT: ${{ github.event.inputs.memory_content || 'Push 自動觸發' }}
         run: |
-          set -euo pipefail
           if [[ -f "scripts/inject_api.py" ]]; then
-            echo "🚀 5.2 引擎啟動：正在注射記憶至 Render..."
             python scripts/inject_api.py
           else
-            echo "❌ 找不到 scripts/inject_api.py！請確認檔案位置。"
+            echo "❌ 檔案遺失: scripts/inject_api.py"
             exit 1
           fi
