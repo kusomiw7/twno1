@@ -3,208 +3,65 @@ name: Inject API (Safe)
 on:
   workflow_dispatch:
     inputs:
-      write_env_file:
-        description: "Write a temp env file for subsequent steps (NOT committed)."
+      memory_key:
+        description: "記憶鍵值 (例如: user_pref)"
         required: false
-        default: "true"
-      env_file_path:
-        description: "Path to write env file. Default uses RUNNER_TEMP."
+        default: "system_status"
+      memory_content:
+        description: "記憶內容 (要存入的訊息)"
         required: false
-        default: ""
-      upload_artifact:
-        description: "Upload env file as artifact for downstream jobs."
-        required: false
-        default: "true"
-      artifact_name:
-        description: "Artifact name if upload_artifact=true"
-        required: false
-        default: "api-env"
+        default: "5.2 系統連線測試成功"
       python_version:
-        description: "Python version to use if installing/running scripts."
+        description: "Python 版本"
         required: false
         default: "3.12"
-
-  workflow_call:
-    inputs:
-      write_env_file:
-        type: string
-        required: false
-        default: "true"
-      env_file_path:
-        type: string
-        required: false
-        default: ""
-      upload_artifact:
-        type: string
-        required: false
-        default: "true"
-      artifact_name:
-        type: string
-        required: false
-        default: "api-env"
-      python_version:
-        type: string
-        required: false
-        default: "3.12"
-    secrets:
-      API_TOKEN:
-        required: true
-      API_BASE_URL:
-        required: false
 
   push:
     branches:
       - main
     paths:
       - ".github/workflows/inject_api.yml"
-      - "requirements.txt"
-      - "server.py"
       - "scripts/**"
-      - "src/**"
 
 permissions:
   contents: read
 
-concurrency:
-  group: inject-api-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   inject:
-    name: Inject API secrets into runner env (safe)
+    name: Inject API secrets into runner env
     runs-on: ubuntu-latest
     timeout-minutes: 10
-
-    # Normalize inputs for all trigger types:
-    # - workflow_dispatch: github.event.inputs.*
-    # - workflow_call: inputs.*
-    # - push: neither exists -> fall back to defaults
-    env:
-      WRITE_ENV_FILE: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.write_env_file) || inputs.write_env_file || 'true' }}
-      UPLOAD_ARTIFACT: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.upload_artifact) || inputs.upload_artifact || 'true' }}
-      ARTIFACT_NAME: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.artifact_name) || inputs.artifact_name || 'api-env' }}
-      PYTHON_VERSION: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.python_version) || inputs.python_version || '3.12' }}
-
-      # Default env file path uses RUNNER_TEMP to avoid accidentally committing secrets.
-      # If user provides env_file_path, we will use it.
-      ENV_FILE_PATH_INPUT: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.env_file_path) || inputs.env_file_path || '' }}
-
-      PIP_DISABLE_PIP_VERSION_CHECK: "1"
-      PYTHONDONTWRITEBYTECODE: "1"
-      PYTHONUNBUFFERED: "1"
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Validate required secrets exist
-        shell: bash
-        env:
-          API_TOKEN: ${{ secrets.API_TOKEN }}
-        run: |
-          set -euo pipefail
-          if [[ -z "${API_TOKEN:-}" ]]; then
-            echo "ERROR: Missing required secret: API_TOKEN"
-            echo "Add it in: Settings -> Secrets and variables -> Actions -> New repository secret"
-            exit 1
-          fi
-
-      - name: Mask secrets (prevent accidental log exposure)
-        shell: bash
-        env:
-          API_TOKEN: ${{ secrets.API_TOKEN }}
-          API_BASE_URL: ${{ secrets.API_BASE_URL }}
-        run: |
-          set -euo pipefail
-          echo "::add-mask::${API_TOKEN}"
-          if [[ -n "${API_BASE_URL:-}" ]]; then
-            echo "::add-mask::${API_BASE_URL}"
-          fi
-
-      - name: Export secrets to job environment (safe)
-        shell: bash
-        env:
-          API_TOKEN: ${{ secrets.API_TOKEN }}
-          API_BASE_URL: ${{ secrets.API_BASE_URL }}
-        run: |
-          set -euo pipefail
-          {
-            echo "API_TOKEN=${API_TOKEN}"
-            if [[ -n "${API_BASE_URL:-}" ]]; then
-              echo "API_BASE_URL=${API_BASE_URL}"
-            fi
-          } >> "${GITHUB_ENV}"
-
-      - name: Resolve env file path
-        id: resolve_path
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ -n "${ENV_FILE_PATH_INPUT:-}" ]]; then
-            ENV_FILE_PATH="${ENV_FILE_PATH_INPUT}"
-          else
-            ENV_FILE_PATH="${RUNNER_TEMP}/api.env"
-          fi
-          echo "env_file_path=${ENV_FILE_PATH}" >> "${GITHUB_OUTPUT}"
-
-      - name: Write env file for subsequent steps (NOT committed)
-        if: ${{ env.WRITE_ENV_FILE != 'false' }}
-        shell: bash
-        env:
-          API_TOKEN: ${{ secrets.API_TOKEN }}
-          API_BASE_URL: ${{ secrets.API_BASE_URL }}
-          ENV_FILE_PATH: ${{ steps.resolve_path.outputs.env_file_path }}
-        run: |
-          set -euo pipefail
-          umask 077
-
-          mkdir -p "$(dirname "${ENV_FILE_PATH}")"
-          : > "${ENV_FILE_PATH}"
-
-          # Do NOT echo secret values to logs.
-          printf "API_TOKEN=%s\n" "${API_TOKEN}" >> "${ENV_FILE_PATH}"
-          if [[ -n "${API_BASE_URL:-}" ]]; then
-            printf "API_BASE_URL=%s\n" "${API_BASE_URL}" >> "${ENV_FILE_PATH}"
-          fi
-
-          chmod 600 "${ENV_FILE_PATH}"
-
-      - name: Upload env file as artifact (optional)
-        if: ${{ env.UPLOAD_ARTIFACT != 'false' && env.WRITE_ENV_FILE != 'false' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ env.ARTIFACT_NAME }}
-          path: ${{ steps.resolve_path.outputs.env_file_path }}
-          if-no-files-found: error
-          retention-days: 1
-
-      - name: Setup Python (optional)
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          python-version: ${{ github.event.inputs.python_version || '3.12' }}
           cache: "pip"
 
-      - name: Install dependencies (optional)
-        shell: bash
+      - name: Install dependencies
         run: |
-          set -euo pipefail
           python -m pip install --upgrade pip
-          if [[ -f "requirements.txt" ]]; then
-            pip install -r requirements.txt
-          else
-            echo "requirements.txt not found; skipping."
-          fi
+          pip install requests
 
-      - name: Example - run script using injected env (optional)
+      - name: Run Injection Script
         shell: bash
         env:
-          API_TOKEN: ${{ env.API_TOKEN }}
-          API_BASE_URL: ${{ env.API_BASE_URL }}
+          # 從 Secrets 抓取黃金數據
+          API_TOKEN: ${{ secrets.API_TOKEN }}
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+          # 從手動輸入抓取記憶內容
+          MEMORY_KEY: ${{ github.event.inputs.memory_key || 'system_status' }}
+          MEMORY_CONTENT: ${{ github.event.inputs.memory_content || '自動觸發連線成功' }}
         run: |
           set -euo pipefail
-          # IMPORTANT: never print $API_TOKEN.
           if [[ -f "scripts/inject_api.py" ]]; then
+            echo "🚀 啟動記憶注射針..."
             python scripts/inject_api.py
           else
-            echo "No scripts/inject_api.py found; injection complete."
+            echo "❌ 錯誤: 找不到 scripts/inject_api.py，請確認檔案路徑是否正確。"
+            exit 1
           fi
