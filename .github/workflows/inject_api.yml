@@ -3,39 +3,33 @@ name: Inject API (Safe)
 on:
   workflow_dispatch:
     inputs:
-      memory_key:
-        description: "記憶鍵值"
-        default: "system_status"
       memory_content:
-        description: "記憶內容"
-        default: "發財！5.2 連線全面對齊。"
+        default: "發財！5.2 連線完全回歸版本"
 
   push:
     branches: [ "main" ]
 
 jobs:
   inject:
-    name: Execute 5.2 Injection
+    name: Execute Injection
     runs-on: ubuntu-latest
-    
     steps:
-      - name: 1. Checkout Code
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: 2. Setup Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
-      - name: 3. Install Requirements
+      - name: Install Dependencies
         run: pip install requests
 
-      - name: 4. Inject Memory
+      - name: Run Injection Script
         shell: bash
         env:
-          # 從你的 Secrets 抓取「發財」
+          # GitHub Secrets 的名字
           API_TOKEN: ${{ secrets.API_TOKEN }}
           API_BASE_URL: ${{ secrets.API_BASE_URL }}
-          MEMORY_KEY: ${{ github.event.inputs.memory_key || 'system_status' }}
-          MEMORY_CONTENT: ${{ github.event.inputs.memory_content || 'Push 自動注射' }}
+          MEMORY_CONTENT: ${{ github.event.inputs.memory_content || 'Push 自動觸發' }}
         run: python scripts/inject_api.py
