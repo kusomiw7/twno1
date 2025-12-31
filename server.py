@@ -1,71 +1,61 @@
 import os
+from flask import Flask, request, jsonify
 import requests
 import base64
-from flask import Flask, request, jsonify
+import json
 
 app = Flask(__name__)
 
-# 嚴禁省略：從環境變數讀取
-GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
-REPO_NAME = os.environ.get("REPO_NAME")
-AUTH_CODE = os.environ.get("AUTH_CODE", "發大財")
+# 取得環境變數
+GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN')
+REPO_NAME = "kusomiw7/twno1"
 FILE_PATH = "brain_logic.json"
-BRANCH = "main" # 如果你是 master，請改成 master
-
-def force_update_github(content):
-    """
-    100% 完整：直接透過 API 強制更新 GitHub 檔案內容
-    """
-    url = f"https://api.github.com/repos/{REPO_NAME}/contents/{FILE_PATH}"
-    headers = {
-        "Authorization": f"Bearer {GITHUB_TOKEN}",
-        "Accept": "application/vnd.github.v3+json"
-    }
-
-    # 第一步：獲取目前的 SHA (這是 GitHub API 的強制要求)
-    get_r = requests.get(url, headers=headers)
-    sha = get_r.json().get("sha") if get_r.status_code == 200 else None
-
-    # 第二步：準備 payload
-    encoded_content = base64.b64encode(content.encode("utf-8")).decode("utf-8")
-    payload = {
-        "message": "Gemini 言出法隨同步",
-        "content": encoded_content,
-        "branch": BRANCH
-    }
-    if sha:
-        payload["sha"] = sha
-
-    # 第三步：推送到 GitHub
-    put_r = requests.put(url, headers=headers, json=payload)
-    return put_r.status_code, put_r.json()
-
-@app.route('/')
-def home():
-    return f"aia87_core 上線中。目標：{REPO_NAME}"
+# 這裡最重要：確保 AUTH_CODE 被正確讀取並移除可能存在的隱形換行
+AUTH_CODE = os.environ.get('AUTH_CODE', '').strip()
 
 @app.route('/api/inject', methods=['POST'])
-def inject_instruction():
-    data = request.get_json()
-    if not data or data.get("auth") != AUTH_CODE:
-        return jsonify({"status": "denied", "reason": "暗號不對"}), 403
+def inject():
+    data = request.json
+    user_auth = data.get('auth', '').strip()
+    instruction = data.get('instruction', '')
+    details = data.get('details', {})
 
-    new_cmd = data.get("instruction")
-    # 建立完整的指令 JSON
-    json_data = f'{{"status": "online", "instruction": "{new_cmd}", "details": {{}}}}'
+    # 除錯紀錄：這會在 Render 的 Logs 顯示你收到了什麼
+    print(f"收到驗證請求: {user_auth}，預期暗號: {AUTH_CODE}")
+
+    if user_auth == AUTH_CODE:
+        # --- 以下是更新 GitHub 的邏輯 ---
+        url = f"https://api.github.com/repos/{REPO_NAME}/contents/{FILE_PATH}"
+        headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+        
+        # 先獲取舊檔案的 SHA
+        get_res = requests.get(url, headers=headers)
+        sha = get_res.json().get('sha') if get_res.status_code == 200 else None
+
+        # 準備新內容
+        new_content = {
+            "status": "online",
+            "instruction": instruction,
+            "details": details
+        }
+        content_str = json.dumps(new_content, ensure_ascii=False, indent=4)
+        encoded_content = base64.b64encode(content_str.encode('utf-8')).decode('utf-8')
+
+        put_data = {
+            "message": "Gemini 言出法隨同步",
+            "content": encoded_content,
+            "sha": sha
+        }
+
+        put_res = requests.put(url, headers=headers, json=put_data)
+        
+        if put_res.status_code in [200, 201]:
+            return jsonify({"status": "success", "msg": f"指令已變更為: {instruction}"})
+        else:
+            return jsonify({"status": "error", "reason": "GitHub API 失敗"}), 500
     
-    status_code, response_json = force_update_github(json_data)
-
-    if status_code in [200, 201]:
-        return jsonify({"status": "success", "msg": f"指令已變更為: {new_cmd}"})
-    else:
-        return jsonify({"status": "failed", "error": response_json}), status_code
-
-@app.route('/api/get_instruction', methods=['GET'])
-def get_instruction():
-    url = f"https://raw.githubusercontent.com/{REPO_NAME}/{BRANCH}/{FILE_PATH}"
-    r = requests.get(url)
-    return r.text if r.status_code == 200 else jsonify({"status": "error"})
+    # 如果失敗，我們多回傳一個資訊（僅供測試）
+    return jsonify({"status": "denied", "reason": "暗號不對"}), 401
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 5000)))
+    app.run(host='0.0.0.0', port=10000)
