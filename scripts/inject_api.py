@@ -8,7 +8,7 @@ def inject_to_long_term_memory():
     執行官專用：嚴謹對齊長期記憶通道。
     """
     # 1. 靜默獲取環境變數 (由 YAML 的 env 區塊傳入)
-    auth_token = os.environ.get("API_TOKEN")  # 來自 secrets.MY_AUTH_CODE
+    auth_token = os.environ.get("API_TOKEN") 
     base_url_raw = os.environ.get("API_BASE_URL")
 
     print("--- 5.2 執行官：長期記憶通道對齊中 ---")
@@ -17,7 +17,7 @@ def inject_to_long_term_memory():
         print("❌ 錯誤：環境變數缺失。請確認 GitHub Secrets 與 YAML 映射。")
         sys.exit(1)
 
-    # 2. 網址與路徑處理 (移除結尾斜線並補上正確端點)
+    # 2. 網址與路徑處理
     clean_base_url = base_url_raw.strip().rstrip('/')
     target_url = f"{clean_base_url}/api/execute"
 
@@ -59,10 +59,15 @@ def inject_to_long_term_memory():
             elif status_code in (401, 403):
                 print(f"❌ 失敗：驗證不通過 ({status_code})。請核對暗號內容。")
                 print(f"📄 回應內容: {response.text}")
-                break # 驗證錯誤不重試
+                break 
             
             elif status_code == 404:
-                print(f"❌ 失敗：路徑錯誤。請確認 Server 是否存在 /api/execute 端點。")
+                print(f"❌ 失敗：路徑錯誤。請確認 Server 端端點。")
+                break
+            
+            elif status_code == 422:
+                print(f"❌ 失敗：格式錯誤 (422)。Payload 與 Server 模型不符。")
+                print(f"📄 回應內容: {response.text}")
                 break
 
         except Exception as e:
