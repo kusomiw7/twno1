@@ -4,13 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       write_env_file:
-        description: "Whether to write a local env file (.runtime/api.env) for subsequent steps (NOT committed)."
+        description: "Write a temp env file for subsequent steps (NOT committed)."
         required: false
         default: "true"
       env_file_path:
-        description: "Path to write env file (relative)."
+        description: "Path to write env file. Default uses RUNNER_TEMP."
         required: false
-        default: ".runtime/api.env"
+        default: ""
       upload_artifact:
         description: "Upload env file as artifact for downstream jobs."
         required: false
@@ -19,6 +19,39 @@ on:
         description: "Artifact name if upload_artifact=true"
         required: false
         default: "api-env"
+      python_version:
+        description: "Python version to use if installing/running scripts."
+        required: false
+        default: "3.12"
+
+  workflow_call:
+    inputs:
+      write_env_file:
+        type: string
+        required: false
+        default: "true"
+      env_file_path:
+        type: string
+        required: false
+        default: ""
+      upload_artifact:
+        type: string
+        required: false
+        default: "true"
+      artifact_name:
+        type: string
+        required: false
+        default: "api-env"
+      python_version:
+        type: string
+        required: false
+        default: "3.12"
+    secrets:
+      API_TOKEN:
+        required: true
+      API_BASE_URL:
+        required: false
+
   push:
     branches:
       - main
@@ -38,11 +71,24 @@ concurrency:
 
 jobs:
   inject:
-    name: Inject API Secrets into Runner Env
+    name: Inject API secrets into runner env (safe)
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
+    # Normalize inputs for all trigger types:
+    # - workflow_dispatch: github.event.inputs.*
+    # - workflow_call: inputs.*
+    # - push: neither exists -> fall back to defaults
     env:
+      WRITE_ENV_FILE: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.write_env_file) || inputs.write_env_file || 'true' }}
+      UPLOAD_ARTIFACT: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.upload_artifact) || inputs.upload_artifact || 'true' }}
+      ARTIFACT_NAME: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.artifact_name) || inputs.artifact_name || 'api-env' }}
+      PYTHON_VERSION: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.python_version) || inputs.python_version || '3.12' }}
+
+      # Default env file path uses RUNNER_TEMP to avoid accidentally committing secrets.
+      # If user provides env_file_path, we will use it.
+      ENV_FILE_PATH_INPUT: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.env_file_path) || inputs.env_file_path || '' }}
+
       PIP_DISABLE_PIP_VERSION_CHECK: "1"
       PYTHONDONTWRITEBYTECODE: "1"
       PYTHONUNBUFFERED: "1"
@@ -59,7 +105,7 @@ jobs:
           set -euo pipefail
           if [[ -z "${API_TOKEN:-}" ]]; then
             echo "ERROR: Missing required secret: API_TOKEN"
-            echo "Add it in repo Settings -> Secrets and variables -> Actions -> New repository secret"
+            echo "Add it in: Settings -> Secrets and variables -> Actions -> New repository secret"
             exit 1
           fi
 
@@ -89,10 +135,53 @@ jobs:
             fi
           } >> "${GITHUB_ENV}"
 
-      - name: Setup Python (optional - if you run scripts after injection)
+      - name: Resolve env file path
+        id: resolve_path
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "${ENV_FILE_PATH_INPUT:-}" ]]; then
+            ENV_FILE_PATH="${ENV_FILE_PATH_INPUT}"
+          else
+            ENV_FILE_PATH="${RUNNER_TEMP}/api.env"
+          fi
+          echo "env_file_path=${ENV_FILE_PATH}" >> "${GITHUB_OUTPUT}"
+
+      - name: Write env file for subsequent steps (NOT committed)
+        if: ${{ env.WRITE_ENV_FILE != 'false' }}
+        shell: bash
+        env:
+          API_TOKEN: ${{ secrets.API_TOKEN }}
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+          ENV_FILE_PATH: ${{ steps.resolve_path.outputs.env_file_path }}
+        run: |
+          set -euo pipefail
+          umask 077
+
+          mkdir -p "$(dirname "${ENV_FILE_PATH}")"
+          : > "${ENV_FILE_PATH}"
+
+          # Do NOT echo secret values to logs.
+          printf "API_TOKEN=%s\n" "${API_TOKEN}" >> "${ENV_FILE_PATH}"
+          if [[ -n "${API_BASE_URL:-}" ]]; then
+            printf "API_BASE_URL=%s\n" "${API_BASE_URL}" >> "${ENV_FILE_PATH}"
+          fi
+
+          chmod 600 "${ENV_FILE_PATH}"
+
+      - name: Upload env file as artifact (optional)
+        if: ${{ env.UPLOAD_ARTIFACT != 'false' && env.WRITE_ENV_FILE != 'false' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ${{ steps.resolve_path.outputs.env_file_path }}
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Setup Python (optional)
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ env.PYTHON_VERSION }}
           cache: "pip"
 
       - name: Install dependencies (optional)
@@ -106,50 +195,14 @@ jobs:
             echo "requirements.txt not found; skipping."
           fi
 
-      - name: Write env file for subsequent steps (NOT committed)
-        if: ${{ inputs.write_env_file != 'false' }}
+      - name: Example - run script using injected env (optional)
         shell: bash
         env:
-          API_TOKEN: ${{ secrets.API_TOKEN }}
-          API_BASE_URL: ${{ secrets.API_BASE_URL }}
-          ENV_FILE_PATH: ${{ inputs.env_file_path }}
-        run: |
-          set -euo pipefail
-          umask 077
-
-          # Ensure parent dir exists
-          mkdir -p "$(dirname "${ENV_FILE_PATH}")"
-
-          # Write without echoing secret to logs
-          : > "${ENV_FILE_PATH}"
-          printf "API_TOKEN=%s\n" "${API_TOKEN}" >> "${ENV_FILE_PATH}"
-
-          if [[ -n "${API_BASE_URL:-}" ]]; then
-            printf "API_BASE_URL=%s\n" "${API_BASE_URL}" >> "${ENV_FILE_PATH}"
-          fi
-
-          # Tight permissions (600)
-          chmod 600 "${ENV_FILE_PATH}"
-
-      - name: Upload env file as artifact (optional)
-        if: ${{ inputs.upload_artifact != 'false' && inputs.write_env_file != 'false' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ inputs.artifact_name }}
-          path: ${{ inputs.env_file_path }}
-          if-no-files-found: error
-          retention-days: 1
-
-      - name: Example - run a script that uses the injected API env (optional)
-        shell: bash
-        env:
-          # Available from GITHUB_ENV now
           API_TOKEN: ${{ env.API_TOKEN }}
           API_BASE_URL: ${{ env.API_BASE_URL }}
         run: |
           set -euo pipefail
-          # Do NOT print $API_TOKEN.
-          # Example placeholders (only run if you have such a script):
+          # IMPORTANT: never print $API_TOKEN.
           if [[ -f "scripts/inject_api.py" ]]; then
             python scripts/inject_api.py
           else
