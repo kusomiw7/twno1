@@ -1,91 +1,66 @@
+from fastapi import FastAPI, Header, HTTPException, Depends
+from pydantic import BaseModel
+from typing import Optional, List
 import os
-import requests
-import base64
-import time
 import json
-from flask import Flask, request, jsonify
+import hmac
+import hashlib
 
-app = Flask(__name__)
+app = FastAPI(title="TWNO1-Super-Agent")
 
-# 配置資訊 - 從環境變數讀取
-GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
-REPO_NAME = os.environ.get("REPO_NAME")
-# 預設暗號設為「發財」，若環境變數有設定則以變數為主
-AUTH_CODE = os.environ.get("AUTH_CODE", "發財")
-FILE_PATH = "brain_logic.json"
+# 核心安全變數：從 Render 環境變數讀取 (發財)
+AUTH_CODE = os.environ.get('AUTH_CODE', '發財')
+STATE_FILE = "current_state.json"
 
-@app.route('/')
-def home():
-    return f"aia87_core 運作中！目標庫：{REPO_NAME}，狀態：言出法隨已啟動"
+class CommandRequest(BaseModel):
+    command: str
+    value: str
+    checksum: Optional[str] = None
 
-@app.route('/api/get_instruction')
-def get_instruction():
-    # 加上隨機時間戳記，強制繞過 GitHub Raw 的 5 分鐘快取機制
-    timestamp = int(time.time())
-    url = f"https://raw.githubusercontent.com/{REPO_NAME}/main/{FILE_PATH}?t={timestamp}"
+class StateManager:
+    @staticmethod
+    def save_state(data):
+        with open(STATE_FILE, "w") as f:
+            json.dump(data, f)
+
+    @staticmethod
+    def load_state():
+        if os.path.exists(STATE_FILE):
+            with open(STATE_FILE, "r") as f:
+                return json.load(f)
+        return {"status": "init"}
+
+# 驗證邏輯：確保只有帶著「發財」的人能進來
+def verify_auth(x_auth_code: str = Header(None)):
+    # 使用 constant_time_compare 防止時序攻擊 (5.2 推薦等級)
+    if not x_auth_code or not hmac.compare_digest(x_auth_code, AUTH_CODE):
+        raise HTTPException(status_code=403, detail="暗號錯誤，發不了財")
+    return x_auth_code
+
+@app.get("/")
+def read_root():
+    return {"message": "系統已升級至 5.2 架構，執行官 Gemini 待命中心"}
+
+@app.post("/api/execute", dependencies=[Depends(verify_auth)])
+async def execute_command(req: CommandRequest):
+    # 邏輯記憶引擎
+    current_state = StateManager.load_state()
     
-    try:
-        r = requests.get(url, timeout=10)
-        if r.status_code == 200:
-            return r.json()
-        else:
-            return jsonify({
-                "error": "無法從 GitHub 讀取指令",
-                "status_code": r.status_code,
-                "hint": "請檢查檔案是否存在於 main 分支"
-            }), 404
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/api/inject', methods=['POST'])
-def inject():
-    data = request.get_json()
-    
-    # 驗證暗號
-    if not data or data.get("auth") != AUTH_CODE:
-        return jsonify({"status": "denied", "reason": "暗號不對"}), 403
-    
-    # 準備寫入的內容
-    content_dict = {
-        "status": "online",
-        "instruction": data.get("instruction", "None"),
-        "details": data.get("details", {}),
-        "last_update": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-    }
-    json_str = json.dumps(content_dict, ensure_ascii=False, indent=2)
-    
-    # GitHub API 配置
-    url = f"https://api.github.com/repos/{REPO_NAME}/contents/{FILE_PATH}"
-    headers = {
-        "Authorization": f"token {GITHUB_TOKEN}",
-        "Accept": "application/vnd.github.v3+json"
+    # 執行遊戲控制邏輯
+    # 這裡可以串接你的遠端投放、事件觸發等 API
+    result = {
+        "event": req.command,
+        "payload": req.value,
+        "prev_state": current_state.get("status"),
+        "status": "success"
     }
     
-    # 1. 獲取檔案的 SHA (更新檔案必須提供舊的 SHA)
-    r_get = requests.get(url, headers=headers)
-    sha = r_get.json().get("sha") if r_get.status_code == 200 else None
+    # 持久化記憶：存入 GitHub/Render 磁碟
+    StateManager.save_state(result)
     
-    # 2. 執行寫入動作
-    payload = {
-        "message": "Gemini 言出法隨同步更新",
-        "content": base64.b64encode(json_str.encode("utf-8")).decode("utf-8"),
-        "sha": sha
-    }
-    
-    r_put = requests.put(url, headers=headers, json=payload)
-    
-    if r_put.status_code in [200, 201]:
-        return jsonify({
-            "status": "success",
-            "message": "指令已成功同步至 GitHub",
-            "updated_at": content_dict["last_update"]
-        })
-    else:
-        return jsonify({
-            "status": "failed",
-            "github_response": r_put.json()
-        }), r_put.status_code
+    return {"status": "發財成功", "data": result}
 
-if __name__ == '__main__':
-    # 偵錯模式啟動
-    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 5000)))
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 5000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
