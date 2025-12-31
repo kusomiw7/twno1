@@ -1,7 +1,1 @@
-{
-  "auth": "發大財",
-  "action": "OPEN_WEB",
-  "payload": {
-    "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-  }
-}
+{"status": "online", "instruction": "你好晚安", "details": {}}
