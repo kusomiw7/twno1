@@ -4,25 +4,29 @@ on:
   workflow_dispatch:
     inputs:
       memory_key:
-        description: "記憶鍵值 (例如: user_pref)"
+        description: "記憶鍵值 (例如: system_status)"
         required: false
         default: "system_status"
       memory_content:
-        description: "記憶內容 (要存入的訊息)"
+        description: "要存入的內容 (例如: 發大財)"
         required: false
-        default: "發財！5.2 系統連線成功。"
+        default: "5.2 記憶連結測試成功"
 
   push:
     branches:
       - main
     paths:
-      - ".github/workflows/inject_api.yml"
       - "scripts/**"
+      - ".github/workflows/inject_api.yml"
+
+permissions:
+  contents: read
 
 jobs:
   inject:
-    name: Inject API secrets into runner env
+    name: Execute 5.2 Memory Injection
     runs-on: ubuntu-latest
+    
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -40,15 +44,18 @@ jobs:
       - name: Run Injection Script
         shell: bash
         env:
+          # 直接從 Secrets 抓取
           API_TOKEN: ${{ secrets.API_TOKEN }}
           API_BASE_URL: ${{ secrets.API_BASE_URL }}
-          MEMORY_KEY: ${{ github.event.inputs.memory_key || 'system_status' }}
-          MEMORY_CONTENT: ${{ github.event.inputs.memory_content || 'Push 自動觸發測試' }}
+          # 從手動輸入框抓取
+          MEMORY_KEY: ${{ github.event.inputs.memory_key }}
+          MEMORY_CONTENT: ${{ github.event.inputs.memory_content }}
         run: |
+          set -euo pipefail
           if [[ -f "scripts/inject_api.py" ]]; then
-            echo "🚀 啟動記憶注射針..."
+            echo "🚀 5.2 引擎啟動：正在注射記憶至 Render..."
             python scripts/inject_api.py
           else
-            echo "❌ 錯誤: 找不到 scripts/inject_api.py，請確認檔案路徑是否正確。"
+            echo "❌ 找不到 scripts/inject_api.py！請確認檔案位置。"
             exit 1
           fi
