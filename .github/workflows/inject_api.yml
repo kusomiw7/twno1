@@ -1,37 +1,30 @@
-name: Inject API (Safe)
+name: Execute Injection
 
 on:
-  push:
-    branches: [ "main" ]
-  workflow_dispatch:
+  workflow_dispatch:  # 允許手動點擊按鈕發射
+  push:               # 每次推送到 main 分支時也自動執行
+    branches: [ main ]
 
 jobs:
-  inject:
-    name: Execute Injection
+  injection-job:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
-      - name: Install Dependencies
+      - name: Install dependencies
         run: pip install requests
 
-      - name: Debug Path and Run
-        shell: bash
+      - name: Run Injection Script
         env:
-          API_TOKEN: ${{ secrets.API_TOKEN }}
+          # 【關鍵對齊】
+          # 右邊 ${{ secrets.MY_AUTH_CODE }} 必須等於你 GitHub 後台設定的 Secret 名稱
+          # 左邊 API_TOKEN 是 Python 程式碼 inject_api.py 裡面讀取的名稱
+          API_TOKEN: ${{ secrets.MY_AUTH_CODE }}
           API_BASE_URL: ${{ secrets.API_BASE_URL }}
-        run: |
-          echo "🔍 檢查目前目錄檔案結構:"
-          ls -R
-          if [ -f "scripts/inject_api.py" ]; then
-            python scripts/inject_api.py
-          else
-            echo "❌ 錯誤：找不到 scripts/inject_api.py，請確認檔案是否有推送到 GitHub"
-            exit 1
-          fi
+        run: python scripts/inject_api.py
