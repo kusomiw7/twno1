@@ -5,21 +5,16 @@ on:
     inputs:
       memory_key:
         description: "記憶鍵值"
-        required: false
         default: "system_status"
       memory_content:
         description: "記憶內容"
-        required: false
-        default: "5.2 最終定版連線成功"
+        default: "5.2 終極連線成功"
 
   push:
     branches: [ "main" ]
     paths:
       - "scripts/inject_api.py"
       - ".github/workflows/inject_api.yml"
-
-permissions:
-  contents: read
 
 jobs:
   inject:
@@ -35,23 +30,19 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install & Run (All-in-One)
+      - name: Install & Run
         shell: bash
         env:
-          # 這裡直接對接 Secrets，不再經過複雜的中轉
           API_TOKEN: ${{ secrets.API_TOKEN }}
           API_BASE_URL: ${{ secrets.API_BASE_URL }}
           MEMORY_KEY: ${{ github.event.inputs.memory_key || 'system_status' }}
           MEMORY_CONTENT: ${{ github.event.inputs.memory_content || 'Push Triggered' }}
         run: |
-          # 1. 直接安裝 requests
           pip install requests
-          
-          # 2. 確認腳本存在並執行
           if [ -f "scripts/inject_api.py" ]; then
             python scripts/inject_api.py
           else
-            echo "❌ 嚴重錯誤：找不到 scripts/inject_api.py"
+            echo "❌ 找不到 scripts/inject_api.py"
             ls -R
             exit 1
           fi
