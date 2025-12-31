@@ -10,64 +10,48 @@ on:
       memory_content:
         description: "記憶內容"
         required: false
-        default: "5.2 複雜架構修復成功"
+        default: "5.2 最終定版連線成功"
 
   push:
-    branches:
-      - main
+    branches: [ "main" ]
     paths:
+      - "scripts/inject_api.py"
       - ".github/workflows/inject_api.yml"
-      - "scripts/**"
 
 permissions:
   contents: read
 
 jobs:
   inject:
-    name: Inject API secrets into runner env (safe)
+    name: Execute Injection
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-
+    
     steps:
-      - name: Checkout
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Validate and Mask Secrets
-        shell: bash
-        env:
-          API_TOKEN: ${{ secrets.API_TOKEN }}
-          API_BASE_URL: ${{ secrets.API_BASE_URL }}
-        run: |
-          if [[ -z "${API_TOKEN}" ]]; then echo "ERROR: API_TOKEN is missing"; exit 1; fi
-          echo "::add-mask::${API_TOKEN}"
-          echo "API_TOKEN=${API_TOKEN}" >> $GITHUB_ENV
-          if [[ -n "${API_BASE_URL}" ]]; then
-            echo "::add-mask::${API_BASE_URL}"
-            echo "API_BASE_URL=${API_BASE_URL}" >> $GITHUB_ENV
-          fi
-
-      - name: Setup Python
+      - name: Setup Python 3.12
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
-      - name: Install Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install requests
-
-      - name: Run Injection Script
+      - name: Install & Run (All-in-One)
         shell: bash
         env:
-          # 這裡必須再次顯式聲明，確保 Python 能從 env 讀取
-          API_TOKEN: ${{ env.API_TOKEN }}
-          API_BASE_URL: ${{ env.API_BASE_URL }}
+          # 這裡直接對接 Secrets，不再經過複雜的中轉
+          API_TOKEN: ${{ secrets.API_TOKEN }}
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
           MEMORY_KEY: ${{ github.event.inputs.memory_key || 'system_status' }}
-          MEMORY_CONTENT: ${{ github.event.inputs.memory_content || 'Push 自動觸發' }}
+          MEMORY_CONTENT: ${{ github.event.inputs.memory_content || 'Push Triggered' }}
         run: |
-          if [[ -f "scripts/inject_api.py" ]]; then
+          # 1. 直接安裝 requests
+          pip install requests
+          
+          # 2. 確認腳本存在並執行
+          if [ -f "scripts/inject_api.py" ]; then
             python scripts/inject_api.py
           else
-            echo "❌ 檔案遺失: scripts/inject_api.py"
+            echo "❌ 嚴重錯誤：找不到 scripts/inject_api.py"
+            ls -R
             exit 1
           fi
