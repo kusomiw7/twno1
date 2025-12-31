@@ -6,7 +6,7 @@ app = Flask(__name__)
 # 配置資訊
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
 REPO_NAME = os.environ.get("REPO_NAME")
-AUTH_CODE = os.environ.get("AUTH_CODE", "發大財")
+AUTH_CODE = os.environ.get("AUTH_CODE", "發財")
 FILE_PATH = "brain_logic.json"
 
 @app.route('/')
@@ -51,3 +51,4 @@ def inject():
     r_put = requests.put(url, headers=headers, json=payload)
     
     return jsonify({"status": "success" if r_put.status_code in [200, 210] else "failed", "github_response": r_put.json()})
+
