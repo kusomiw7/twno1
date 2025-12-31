@@ -10,11 +10,7 @@ on:
       memory_content:
         description: "記憶內容 (要存入的訊息)"
         required: false
-        default: "5.2 系統連線測試成功"
-      python_version:
-        description: "Python 版本"
-        required: false
-        default: "3.12"
+        default: "發財！5.2 系統連線成功。"
 
   push:
     branches:
@@ -23,15 +19,10 @@ on:
       - ".github/workflows/inject_api.yml"
       - "scripts/**"
 
-permissions:
-  contents: read
-
 jobs:
   inject:
     name: Inject API secrets into runner env
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -39,8 +30,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ github.event.inputs.python_version || '3.12' }}
-          cache: "pip"
+          python-version: '3.12'
 
       - name: Install dependencies
         run: |
@@ -50,14 +40,11 @@ jobs:
       - name: Run Injection Script
         shell: bash
         env:
-          # 從 Secrets 抓取黃金數據
           API_TOKEN: ${{ secrets.API_TOKEN }}
           API_BASE_URL: ${{ secrets.API_BASE_URL }}
-          # 從手動輸入抓取記憶內容
           MEMORY_KEY: ${{ github.event.inputs.memory_key || 'system_status' }}
-          MEMORY_CONTENT: ${{ github.event.inputs.memory_content || '自動觸發連線成功' }}
+          MEMORY_CONTENT: ${{ github.event.inputs.memory_content || 'Push 自動觸發測試' }}
         run: |
-          set -euo pipefail
           if [[ -f "scripts/inject_api.py" ]]; then
             echo "🚀 啟動記憶注射針..."
             python scripts/inject_api.py
