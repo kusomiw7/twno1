@@ -8,41 +8,34 @@ on:
         default: "system_status"
       memory_content:
         description: "記憶內容"
-        default: "5.2 終極連線成功"
+        default: "發財！5.2 連線全面對齊。"
 
   push:
     branches: [ "main" ]
-    paths:
-      - "scripts/inject_api.py"
-      - ".github/workflows/inject_api.yml"
 
 jobs:
   inject:
-    name: Execute Injection
+    name: Execute 5.2 Injection
     runs-on: ubuntu-latest
     
     steps:
-      - name: Checkout Code
+      - name: 1. Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Python 3.12
+      - name: 2. Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
-      - name: Install & Run
+      - name: 3. Install Requirements
+        run: pip install requests
+
+      - name: 4. Inject Memory
         shell: bash
         env:
+          # 從你的 Secrets 抓取「發財」
           API_TOKEN: ${{ secrets.API_TOKEN }}
           API_BASE_URL: ${{ secrets.API_BASE_URL }}
           MEMORY_KEY: ${{ github.event.inputs.memory_key || 'system_status' }}
-          MEMORY_CONTENT: ${{ github.event.inputs.memory_content || 'Push Triggered' }}
-        run: |
-          pip install requests
-          if [ -f "scripts/inject_api.py" ]; then
-            python scripts/inject_api.py
-          else
-            echo "❌ 找不到 scripts/inject_api.py"
-            ls -R
-            exit 1
-          fi
+          MEMORY_CONTENT: ${{ github.event.inputs.memory_content || 'Push 自動注射' }}
+        run: python scripts/inject_api.py
