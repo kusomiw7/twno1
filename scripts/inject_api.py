@@ -5,6 +5,7 @@ import requests
 
 
 def inject() -> None:
+    # 1) 讀取環境變數（只讀一次，且不 print token）
     token = os.environ.get("API_TOKEN")
     raw_url = os.environ.get("API_BASE_URL")  # e.g. https://twno1-brain.onrender.com
 
@@ -14,16 +15,18 @@ def inject() -> None:
         print("❌ 錯誤：GitHub Secrets (API_TOKEN 或 API_BASE_URL) 缺失")
         sys.exit(1)
 
+    # 2) 修剪 base URL，避免雙斜線
     base_url = raw_url.strip().rstrip("/")
-    target_url = f"{base_url}/api/execute"  # ⚠️ 確認你的 server 端路徑是否真的是這個
+    target_url = f"{base_url}/api/execute"  # ⚠️ 確認 server 端是否真有這個路徑
 
-    # ✅ 用連字號版本，避免代理層丟棄底線 header
+    # 3) Header：用連字號版本，避免 proxy 丟棄底線 header
     headers = {
         "X-Auth-Code": token,
         "Accept": "application/json",
+        # 不必手動加 Content-Type；requests 在你用 json=payload 時會自動加
     }
 
-    # ✅ payload 只能有一組 command/value（避免 dict key 重複覆蓋）
+    # 4) Payload：保持單一結構，避免 dict key 覆蓋
     payload = {
         "command": "sync_memory",
         "value": "發財！長期記憶通道已 100% 對齊。",
@@ -31,19 +34,20 @@ def inject() -> None:
 
     print(f"🚀 發送請求至: {target_url}")
 
-    # Render 冷啟動可能慢：做 3 次嘗試
-    last_status = None
-    last_text = None
+    last_status: int | None = None
+    last_text: str | None = None
 
+    # 5) Render 冷啟動：最多嘗試 3 次
     for attempt in range(1, 4):
         try:
             print(f"📡 第 {attempt} 次嘗試連線...")
+
             resp = requests.post(
                 target_url,
                 headers=headers,
-                json=payload,          # requests 會自動加 application/json
+                json=payload,
                 timeout=45,
-                allow_redirects=False, # 避免 301/308 轉址造成誤判
+                allow_redirects=False,
             )
 
             last_status = resp.status_code
@@ -56,28 +60,31 @@ def inject() -> None:
                 print("✅ 連線成功：記憶更新已送達")
                 return
 
-            # 常見錯誤碼快速指引
+            # 常見錯誤碼指引
             if resp.status_code == 404:
                 print("❌ 404：路徑錯誤（請確認 server 是否有 /api/execute）")
                 break
+
             if resp.status_code in (401, 403):
-                print("❌ 401/403：驗證失敗（請確認 server 讀的是 X-Auth-Code，以及 token 是否一致）")
+                print("❌ 401/403：驗證失敗（請確認 server 讀的是 X-Auth-Code，且 token 一致）")
                 break
+
             if resp.status_code == 422:
                 print("❌ 422：JSON 欄位不符合 server schema（payload 結構需對齊）")
                 break
+
             if resp.status_code == 415:
                 print("❌ 415：Content-Type 不被接受（server 可能強制 application/json）")
                 break
 
         except requests.RequestException as e:
-            print(f"⚠️ 連線失敗: {e}")
+            print(f"⚠️ 網路連線異常: {e}")
 
         if attempt < 3:
             print("⏳ 等待 10 秒後重試...")
             time.sleep(10)
 
-    print("🔥 連線未成功，結束。")
+    print("🔥 連線未成功，任務終止。")
     if last_status is not None:
         print(f"最後狀態碼: {last_status}")
     if last_text is not None:
