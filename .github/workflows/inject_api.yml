@@ -1,0 +1,16 @@
+name: AI_Action_Relay
+on:
+  push:
+    paths:
+      - 'command.json'
+jobs:
+  inject:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Send Command to Render
+        run: |
+          curl -X POST "https://twno1-brain.onrender.com/api/inject" \
+          -H "Content-Type: application/json" \
+          -d @command.json
