@@ -1,8 +1,9 @@
-fastapi
-uvicorn[standard]
-pydantic-settings
-ruff
-mypy
-pytest
-bandit
-pip-audit
+# Runtime dependencies for server.py
+# No secrets here — secrets must come from environment variables / secret manager.
+
+fastapi>=0.110,<1.0
+uvicorn[standard]>=0.27,<1.0
+gunicorn>=21.2,<23.0
+
+pydantic-settings>=2.2,<3.0
+prometheus-client>=0.20,<1.0
