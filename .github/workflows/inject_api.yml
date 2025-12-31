@@ -1,13 +1,9 @@
 name: Inject API (Safe)
 
 on:
-  workflow_dispatch:
-    inputs:
-      memory_content:
-        default: "發財！5.2 連線完全回歸版本"
-
   push:
     branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
   inject:
@@ -25,11 +21,17 @@ jobs:
       - name: Install Dependencies
         run: pip install requests
 
-      - name: Run Injection Script
+      - name: Debug Path and Run
         shell: bash
         env:
-          # GitHub Secrets 的名字
           API_TOKEN: ${{ secrets.API_TOKEN }}
           API_BASE_URL: ${{ secrets.API_BASE_URL }}
-          MEMORY_CONTENT: ${{ github.event.inputs.memory_content || 'Push 自動觸發' }}
-        run: python scripts/inject_api.py
+        run: |
+          echo "🔍 檢查目前目錄檔案結構:"
+          ls -R
+          if [ -f "scripts/inject_api.py" ]; then
+            python scripts/inject_api.py
+          else
+            echo "❌ 錯誤：找不到 scripts/inject_api.py，請確認檔案是否有推送到 GitHub"
+            exit 1
+          fi
