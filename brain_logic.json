@@ -1,1 +1,10 @@
-{"status": "online", "instruction": "正式通電", "details": {"item": "黃金萬兩"}}
+{
+  "status": "online",
+  "instruction": "COMMAND_LINK_ESTABLISHED",
+  "details": {
+    "message": "帥哥，這就是你要的功能！我們終於打通了。",
+    "system": "GitHub Actions -> Render",
+    "status": "Online"
+  },
+  "last_update": "2025-12-31 03:21:04"
+}
