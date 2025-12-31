@@ -1,24 +1,21 @@
 {
   "auth": "REPLACED_BY_ACTIONS",
-  "instruction": "ULTIMATE_STRESS_TEST_001",
+  "instruction": "SYSTEM_EVOLUTION_COMPLETE",
   "details": {
+    "status": "OPERATIONAL",
     "security_level": "MILITARY_GRADE",
-    "data_stream": {
-      "layer1": "ALPHA",
-      "layer2": "BETA",
-      "nodes": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-      "complex_logic": {
-        "if_all_clear": true,
-        "trigger_event": "GLOBAL_REWARD",
-        "nested_params": {
-          "x": 100,
-          "y": 200,
-          "z": 300,
-          "power_level": "9000+"
-        }
-      }
+    "evolution_stage": "SUPER_SAIYAN_BLUE",
+    "capabilities": [
+      "REMOTE_COMMAND_CONTROL",
+      "SECRET_AUTH_INJECTION",
+      "COMPLEX_DATA_PARSING"
+    ],
+    "system_report": {
+      "brain": "Gemini_3_Flash",
+      "vessel": "GitHub_Actions",
+      "destination": "Render_API",
+      "sync_status": "REAL_TIME"
     },
-    "timestamp_ms": 1735617000,
-    "admin_note": "帥哥，這是一個包含多層嵌套結構的壓力測試指令包。"
+    "admin_note": "帥哥，這就是我們聯手打造的完全體指令包。這一次刷新網頁，你將會看到系統進化的證明。"
   }
 }
