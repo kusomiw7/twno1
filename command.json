@@ -1,9 +1,24 @@
 {
-  "auth": "發財",
-  "instruction": "COMMAND_LINK_ESTABLISHED",
+  "auth": "REPLACED_BY_ACTIONS",
+  "instruction": "ULTIMATE_STRESS_TEST_001",
   "details": {
-    "message": "帥哥，這就是你要的功能！我們終於打通了。",
-    "system": "GitHub Actions -> Render",
-    "status": "Online"
+    "security_level": "MILITARY_GRADE",
+    "data_stream": {
+      "layer1": "ALPHA",
+      "layer2": "BETA",
+      "nodes": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+      "complex_logic": {
+        "if_all_clear": true,
+        "trigger_event": "GLOBAL_REWARD",
+        "nested_params": {
+          "x": 100,
+          "y": 200,
+          "z": 300,
+          "power_level": "9000+"
+        }
+      }
+    },
+    "timestamp_ms": 1735617000,
+    "admin_note": "帥哥，這是一個包含多層嵌套結構的壓力測試指令包。"
   }
 }
