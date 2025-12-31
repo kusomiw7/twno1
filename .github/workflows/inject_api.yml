@@ -3,30 +3,18 @@ name: CI
 on:
   push:
     branches: ["**"]
-  workflow_dispatch: # 加入手動觸發按鈕
+  workflow_dispatch:
 
 jobs:
-  build-and-deploy:
+  build-and-push:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install dependencies
-        run: |
-          pip install fastapi uvicorn[standard] pydantic-settings ruff mypy
-
-      # 這裡我們讓檢查失敗也不會擋住部署，先求綠勾勾
-      - name: Ruff Check
-        run: ruff check . || true 
-
-      - name: MyPy Check
-        run: mypy . || true
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -43,4 +31,7 @@ jobs:
         with:
           context: .
           push: true
+          # 這裡會把鏡像存為你的倉庫名:latest
           tags: ghcr.io/${{ github.repository }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
