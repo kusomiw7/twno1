@@ -1,0 +1,38 @@
+name: TWNO1-Brain-Sync
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - 'README.md'
+      - '.github/workflows/**'
+  workflow_dispatch: # 支援手動觸發，不需要改 README
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Generate Git Digest
+        id: digest
+        run: |
+          # 取得最後一次提交的差異內容
+          git diff HEAD^ HEAD > digest.txt
+          echo "DIGEST_CONTENT<<EOF" >> $GITHUB_ENV
+          cat digest.txt >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Dispatch to Render
+        run: |
+          curl -X POST "https://twno1-brain.onrender.com/api/execute" \
+          -H "Content-Type: application/json" \
+          -H "X-Auth-Code: 發財" \
+          -d '{
+            "command": "trigger",
+            "value": "auto_sync",
+            "checksum": "${{ github.sha }}"
+          }'
